@@ -1,3 +1,29 @@
+// Configuración - Los usuarios deben ingresar estos valores
+let CONFIG = {
+    GITHUB_TOKEN: localStorage.getItem('github_token') || '',
+    GIST_ID: localStorage.getItem('gist_id') || '',
+    DATA_FILE_NAME: 'streak-data.json',
+    AUTO_REFRESH_INTERVAL: 30000
+};
+
+// Función para configurar credenciales
+function setupCredentials() {
+    if (!CONFIG.GITHUB_TOKEN || !CONFIG.GIST_ID) {
+        const token = prompt('Ingresa tu GitHub Personal Access Token:\n(Se guardará en tu navegador)');
+        const gistId = prompt('Ingresa tu Gist ID:\n(Se guardará en tu navegador)');
+        
+        if (token && gistId) {
+            localStorage.setItem('github_token', token);
+            localStorage.setItem('gist_id', gistId);
+            CONFIG.GITHUB_TOKEN = token;
+            CONFIG.GIST_ID = gistId;
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
+
 // Clase para manejar el almacenamiento de datos compartido via GitHub Gist
 class StreakStorage {
     constructor() {
@@ -231,6 +257,15 @@ class StreakApp {
     }
 
     async init() {
+        // Verificar y solicitar credenciales si es necesario
+        if (!setupCredentials()) {
+            this.showNotification('⚠️ Configuración cancelada. Usando modo local.', 'error');
+            // Intentar cargar datos locales
+            await this.storage.loadData();
+            this.updateUI();
+            return;
+        }
+        
         // Mostrar estado de carga
         this.showNotification('Cargando datos compartidos...', 'info');
         
@@ -268,6 +303,7 @@ class StreakApp {
         this.checkInBtn = document.getElementById('checkInBtn');
         this.resetBtn = document.getElementById('resetBtn');
         this.refreshBtn = document.getElementById('refreshBtn');
+        this.configBtn = document.getElementById('configBtn');
         this.flameEl = document.getElementById('flame');
         this.notificationEl = document.getElementById('notification');
         this.notificationTextEl = document.getElementById('notificationText');
@@ -279,6 +315,17 @@ class StreakApp {
         this.resetBtn.addEventListener('click', () => this.handleReset());
         if (this.refreshBtn) {
             this.refreshBtn.addEventListener('click', () => this.handleRefresh());
+        }
+        if (this.configBtn) {
+            this.configBtn.addEventListener('click', () => this.handleConfig());
+        }
+    }
+
+    handleConfig() {
+        if (confirm('¿Deseas reconfigurar tus credenciales de GitHub?')) {
+            localStorage.removeItem('github_token');
+            localStorage.removeItem('gist_id');
+            location.reload();
         }
     }
 

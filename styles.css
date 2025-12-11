@@ -234,6 +234,15 @@ h1 {
     background: linear-gradient(135deg, #330867 0%, #30cfd0 100%);
 }
 
+.btn-config {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    color: #663300;
+}
+
+.btn-config:hover {
+    background: linear-gradient(135deg, #fcb69f 0%, #ffecd2 100%);
+}
+
 /* Última actualización */
 .last-update {
     text-align: center;
