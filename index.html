@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador de Rachas Diarias</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 Contador de Rachas 🔥</h1>
+        
+        <div class="stats-container">
+            <div class="stat-box">
+                <div class="stat-label">Racha Actual</div>
+                <div class="stat-value" id="currentStreak">0</div>
+                <div class="stat-unit">días</div>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-label">Racha Máxima</div>
+                <div class="stat-value" id="maxStreak">0</div>
+                <div class="stat-unit">días</div>
+            </div>
+            
+            <div class="stat-box">
+                <div class="stat-label">Total de Días</div>
+                <div class="stat-value" id="totalDays">0</div>
+                <div class="stat-unit">días</div>
+            </div>
+        </div>
+
+        <div class="flame-container" id="flameContainer">
+            <div class="flame" id="flame">
+                <div class="flame-inner"></div>
+                <div class="flame-inner"></div>
+                <div class="flame-inner"></div>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button id="checkInBtn" class="btn btn-primary">
+                ✓ Marcar Día Completado
+            </button>
+            <button id="resetBtn" class="btn btn-secondary">
+                ↻ Reiniciar Racha
+            </button>
+        </div>
+
+        <div class="last-update">
+            <span id="lastUpdate">Última actualización: --</span>
+        </div>
+
+        <div class="history-section">
+            <h2>📊 Historial</h2>
+            <div class="history-list" id="historyList">
+                <!-- Historial se cargará aquí -->
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification">
+        <span id="notificationText"></span>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
