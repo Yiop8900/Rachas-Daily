@@ -9,10 +9,16 @@ let CONFIG = {
 // Función para configurar credenciales
 function setupCredentials() {
     if (!CONFIG.GITHUB_TOKEN || !CONFIG.GIST_ID) {
-        const token = prompt('Ingresa tu GitHub Personal Access Token:\n(Se guardará en tu navegador)');
-        const gistId = prompt('Ingresa tu Gist ID:\n(Se guardará en tu navegador)');
+        alert('🔧 Configuración Inicial\n\nNecesitas ingresar:\n1. GitHub Personal Access Token\n2. Gist ID\n\n⚠️ IMPORTANTE: Todos los usuarios deben usar el MISMO token y MISMO Gist ID para compartir la racha.');
         
-        if (token && gistId) {
+        const token = prompt('Ingresa tu GitHub Personal Access Token:\n(Se guardará en tu navegador)\n\nToken:');
+        if (!token) return false;
+        
+        const gistId = prompt('Ingresa tu Gist ID:\n(Se guardará en tu navegador)\n\n⚠️ Debe ser el MISMO ID que usan tus compañeros\n\nGist ID:');
+        if (!gistId) return false;
+        
+        // Mostrar confirmación
+        if (confirm(`¿Confirmas estos datos?\n\nToken: ${token.substring(0, 10)}...\nGist ID: ${gistId}\n\n✅ Presiona OK para guardar`)) {
             localStorage.setItem('github_token', token);
             localStorage.setItem('gist_id', gistId);
             CONFIG.GITHUB_TOKEN = token;
@@ -268,6 +274,11 @@ class StreakApp {
             return;
         }
         
+        // Mostrar Gist ID actual
+        if (this.gistIdDisplayEl && CONFIG.GIST_ID) {
+            this.gistIdDisplayEl.textContent = CONFIG.GIST_ID;
+        }
+        
         // Mostrar estado de carga
         this.showNotification('Cargando datos compartidos...', 'info');
         
@@ -347,6 +358,7 @@ class StreakApp {
         this.historyListEl = document.getElementById('historyList');
         this.syncIndicatorEl = document.getElementById('syncIndicator');
         this.syncTextEl = document.getElementById('syncText');
+        this.gistIdDisplayEl = document.getElementById('gistIdDisplay');
     }
 
     attachEvents() {
