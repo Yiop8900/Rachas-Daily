@@ -29,6 +29,19 @@ h1 {
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    color: #004466;
+    border-left: 4px solid #30cfd0;
+}
+
 .stats-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

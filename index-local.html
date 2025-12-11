@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contador de Rachas Diarias</title>
+    <title>Contador de Rachas Diarias - Versión Local</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <h1>🔥 Contador de Rachas 🔥</h1>
+        <div class="alert alert-info">
+            <strong>Modo Local:</strong> Esta versión funciona solo en tu navegador. No se sincroniza con otros usuarios.
+        </div>
         
         <div class="stats-container">
             <div class="stat-box">
@@ -42,9 +45,6 @@
             <button id="checkInBtn" class="btn btn-primary">
                 ✓ Marcar Día Completado
             </button>
-            <button id="refreshBtn" class="btn btn-info">
-                🔄 Actualizar Datos
-            </button>
             <button id="resetBtn" class="btn btn-secondary">
                 ↻ Reiniciar Racha
             </button>
@@ -66,7 +66,6 @@
         <span id="notificationText"></span>
     </div>
 
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script src="app-local.js"></script>
 </body>
 </html>

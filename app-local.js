@@ -1,122 +1,30 @@
-// Clase para manejar el almacenamiento de datos compartido via GitHub Gist
+// Versión LOCAL - Solo usa localStorage (sin GitHub)
 class StreakStorage {
     constructor() {
         this.storageKey = 'streakData';
-        this.gistAPI = `https://api.github.com/gists/${CONFIG.GIST_ID}`;
-        this.headers = {
-            'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json'
-        };
-        this.data = null;
-        this.isLoading = false;
+        this.data = this.loadData();
     }
 
-    // Cargar datos desde GitHub Gist (compartido entre todos)
-    async loadData() {
-        if (this.isLoading) {
-            // Esperar si ya hay una carga en proceso
-            await new Promise(resolve => {
-                const checkLoading = setInterval(() => {
-                    if (!this.isLoading) {
-                        clearInterval(checkLoading);
-                        resolve();
-                    }
-                }, 100);
-            });
-            return this.data;
-        }
-
-        this.isLoading = true;
-
+    loadData() {
         try {
-            console.log('Cargando datos desde GitHub Gist...');
-            console.log('URL:', this.gistAPI);
-            
-            const response = await fetch(this.gistAPI, {
-                headers: this.headers
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('Error de GitHub:', errorData);
-                throw new Error(`Error al cargar datos: ${response.status} - ${errorData.message || 'Error desconocido'}`);
+            const stored = localStorage.getItem(this.storageKey);
+            if (stored) {
+                return JSON.parse(stored);
             }
-
-            const gist = await response.json();
-            const fileContent = gist.files[CONFIG.DATA_FILE_NAME].content;
-            this.data = JSON.parse(fileContent);
-            
-            // También guardar copia local como respaldo
-            localStorage.setItem(this.storageKey, fileContent);
-            console.log('Datos cargados exitosamente desde GitHub');
-            
         } catch (error) {
-            console.error('Error al cargar datos desde Gist:', error);
-            console.log('Intentando cargar desde localStorage...');
-            
-            // Intentar cargar desde localStorage como respaldo
-            try {
-                const stored = localStorage.getItem(this.storageKey);
-                if (stored) {
-                    this.data = JSON.parse(stored);
-                    console.log('Datos cargados desde localStorage');
-                } else {
-                    this.data = this.getEmptyData();
-                    console.log('Usando datos vacíos por defecto');
-                }
-            } catch (e) {
-                this.data = this.getEmptyData();
-                console.log('Error al cargar localStorage, usando datos vacíos');
-            }
-        } finally {
-            this.isLoading = false;
+            console.error('Error al cargar datos:', error);
         }
-
-        return this.data;
+        
+        return this.getEmptyData();
     }
 
-    // Guardar datos en GitHub Gist (disponible para todos)
-    async saveData() {
+    saveData() {
         try {
-            const content = JSON.stringify(this.data, null, 2);
-            
-            console.log('Intentando guardar en GitHub Gist...');
-            
-            const response = await fetch(this.gistAPI, {
-                method: 'PATCH',
-                headers: this.headers,
-                body: JSON.stringify({
-                    files: {
-                        [CONFIG.DATA_FILE_NAME]: {
-                            content: content
-                        }
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('Error de GitHub:', errorData);
-                throw new Error(`Error al guardar datos: ${response.status} - ${errorData.message || 'Error desconocido'}`);
-            }
-
-            // También guardar copia local
-            localStorage.setItem(this.storageKey, content);
-            console.log('Datos guardados exitosamente en GitHub y localmente');
-            
+            localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             return true;
         } catch (error) {
-            console.error('Error al guardar datos en Gist:', error);
-            
-            // Guardar al menos localmente
-            try {
-                localStorage.setItem(this.storageKey, JSON.stringify(this.data));
-                console.log('Datos guardados solo localmente como respaldo');
-                return true; // Retornar true porque al menos se guardó localmente
-            } catch (e) {
-                console.error('Error al guardar en localStorage:', e);
-                return false;
-            }
+            console.error('Error al guardar datos:', error);
+            return false;
         }
     }
 
@@ -150,10 +58,7 @@ class StreakStorage {
         return this.data.history;
     }
 
-    async checkIn() {
-        // Recargar datos más recientes antes de hacer check-in
-        await this.loadData();
-        
+    checkIn() {
         const today = new Date().toISOString().split('T')[0];
         const lastCheckIn = this.data.lastCheckIn;
 
@@ -204,20 +109,20 @@ class StreakStorage {
             this.data.history = this.data.history.slice(0, 100);
         }
 
-        const saved = await this.saveData();
+        const saved = this.saveData();
 
         return { 
             success: saved, 
             message: saved 
                 ? `¡Excelente! Racha de ${this.data.currentStreak} días 🔥`
-                : '⚠️ Error al guardar, pero racha registrada localmente',
+                : '⚠️ Error al guardar',
             streak: this.data.currentStreak
         };
     }
 
-    async reset() {
+    reset() {
         this.data = this.getEmptyData();
-        await this.saveData();
+        this.saveData();
     }
 }
 
@@ -227,37 +132,8 @@ class StreakApp {
         this.storage = new StreakStorage();
         this.initElements();
         this.attachEvents();
-        this.init();
-    }
-
-    async init() {
-        // Mostrar estado de carga
-        this.showNotification('Cargando datos compartidos...', 'info');
-        
-        try {
-            await this.storage.loadData();
-            this.updateUI();
-            this.checkStreakStatus();
-            this.showNotification('¡Datos cargados correctamente!', 'success');
-            
-            // Iniciar actualización automática
-            this.startAutoRefresh();
-        } catch (error) {
-            console.error('Error al inicializar:', error);
-            this.showNotification('Error al cargar datos. Usando datos locales.', 'error');
-        }
-    }
-
-    startAutoRefresh() {
-        // Refrescar datos cada cierto tiempo para ver cambios de otros usuarios
-        setInterval(async () => {
-            try {
-                await this.storage.loadData();
-                this.updateUI();
-            } catch (error) {
-                console.error('Error al refrescar datos:', error);
-            }
-        }, CONFIG.AUTO_REFRESH_INTERVAL);
+        this.updateUI();
+        this.checkStreakStatus();
     }
 
     initElements() {
@@ -267,7 +143,6 @@ class StreakApp {
         this.lastUpdateEl = document.getElementById('lastUpdate');
         this.checkInBtn = document.getElementById('checkInBtn');
         this.resetBtn = document.getElementById('resetBtn');
-        this.refreshBtn = document.getElementById('refreshBtn');
         this.flameEl = document.getElementById('flame');
         this.notificationEl = document.getElementById('notification');
         this.notificationTextEl = document.getElementById('notificationText');
@@ -277,25 +152,9 @@ class StreakApp {
     attachEvents() {
         this.checkInBtn.addEventListener('click', () => this.handleCheckIn());
         this.resetBtn.addEventListener('click', () => this.handleReset());
-        if (this.refreshBtn) {
-            this.refreshBtn.addEventListener('click', () => this.handleRefresh());
-        }
-    }
-
-    async handleRefresh() {
-        this.showNotification('Actualizando datos...', 'info');
-        try {
-            await this.storage.loadData();
-            this.updateUI();
-            this.showNotification('¡Datos actualizados!', 'success');
-        } catch (error) {
-            this.showNotification('Error al actualizar', 'error');
-        }
     }
 
     updateUI() {
-        if (!this.storage.data) return;
-        
         this.currentStreakEl.textContent = this.storage.getCurrentStreak();
         this.maxStreakEl.textContent = this.storage.getMaxStreak();
         this.totalDaysEl.textContent = this.storage.getTotalDays();
@@ -332,11 +191,8 @@ class StreakApp {
         }, 1000);
     }
 
-    async handleCheckIn() {
-        this.checkInBtn.disabled = true;
-        this.showNotification('Registrando...', 'info');
-        
-        const result = await this.storage.checkIn();
+    handleCheckIn() {
+        const result = this.storage.checkIn();
         
         if (result.success) {
             this.showNotification(result.message, 'success');
@@ -346,21 +202,14 @@ class StreakApp {
         } else {
             this.showNotification(result.message, 'error');
         }
-        
-        this.checkInBtn.disabled = false;
     }
 
-    async handleReset() {
-        if (confirm('¿Estás seguro de que quieres reiniciar todas las rachas? Esta acción afectará a todos los usuarios y no se puede deshacer.')) {
-            this.resetBtn.disabled = true;
-            this.showNotification('Reiniciando...', 'info');
-            
-            await this.storage.reset();
+    handleReset() {
+        if (confirm('¿Estás seguro de que quieres reiniciar todas las rachas? Esta acción no se puede deshacer.')) {
+            this.storage.reset();
             this.flameEl.classList.remove('active', 'ignite');
             this.updateUI();
-            this.showNotification('Rachas reiniciadas para todos', 'success');
-            
-            this.resetBtn.disabled = false;
+            this.showNotification('Rachas reiniciadas', 'success');
         }
     }
 
