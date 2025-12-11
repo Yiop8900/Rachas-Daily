@@ -1,53 +1,73 @@
 # 🔥 Contador de Rachas Diarias
 
-Una aplicación web simple y elegante para hacer seguimiento de tus rachas diarias con animaciones de llama y almacenamiento persistente.
+Una aplicación web simple y elegante para hacer seguimiento de rachas diarias **compartidas en equipo** con animaciones de llama y almacenamiento persistente en la nube.
 
 ## ✨ Características
 
-- **Contador de Rachas**: Mantén un seguimiento de tu racha actual y máxima
-- **Animaciones de Llama**: Llama animada que se enciende cuando marcas un día completado
-- **Almacenamiento Persistente**: Los datos se guardan automáticamente en el navegador
-- **Historial Completo**: Ve todas tus entradas pasadas
-- **Exportación de Datos**: Los datos se pueden exportar a JSON para respaldar
+- **Contador de Rachas Compartido**: Todos en el equipo ven la misma racha
+- **Sincronización Automática**: Los datos se actualizan cada 30 segundos
+- **Animaciones de Llama**: Llama animada que se enciende cuando se marca un día completado
+- **Almacenamiento en la Nube**: Los datos se guardan en GitHub Gist (accesible para todos)
+- **Respaldo Local**: Funciona offline con datos guardados localmente
+- **Historial Completo**: Ve todas las entradas pasadas del equipo
 - **Diseño Responsivo**: Funciona perfectamente en móviles y escritorio
-- **Compatible con GitHub Pages**: Lista para desplegar en GitHub
+- **Compatible con GitHub Pages**: Lista para desplegar y compartir
 
-## 🚀 Inicio Rápido
+## 🚀 Configuración Rápida
 
-### Uso Local
+### **Paso 1: Crear Token de GitHub**
 
-1. Clona este repositorio:
-```bash
-git clone https://github.com/TU-USUARIO/Rachas-Daily.git
-cd Rachas-Daily
+1. Ve a: https://github.com/settings/tokens/new
+2. Nombre: "Contador de Rachas"
+3. Permisos: Marca solo **`gist`**
+4. Genera y copia el token
+
+### **Paso 2: Crear Gist**
+
+1. Ve a: https://gist.github.com/
+2. Filename: `streak-data.json`
+3. Contenido:
+```json
+{"currentStreak":0,"maxStreak":0,"totalDays":0,"lastCheckIn":null,"history":[]}
+```
+4. Crea el Gist y copia su ID de la URL
+
+### **Paso 3: Configurar**
+
+1. Abre `config.js`
+2. Reemplaza:
+```javascript
+GITHUB_TOKEN: 'tu-token-aqui',
+GIST_ID: 'tu-gist-id-aqui',
 ```
 
-2. Abre `index.html` en tu navegador favorito
+### **Paso 4: Desplegar**
 
-¡Eso es todo! No se requiere instalación ni dependencias.
+```bash
+git add .
+git commit -m "Configurar contador compartido"
+git push origin main
+```
 
-### Despliegue en GitHub Pages
+Activa GitHub Pages en Settings → Pages → Source: `main` branch
 
-1. Sube el código a tu repositorio de GitHub
-2. Ve a Settings → Pages
-3. En "Source", selecciona la rama `main` y carpeta `/root`
-4. Haz clic en "Save"
-5. Tu aplicación estará disponible en `https://TU-USUARIO.github.io/Rachas-Daily`
+**📖 Ver [CONFIGURACION.md](CONFIGURACION.md) para guía detallada paso a paso**
 
 ## 📖 Cómo Usar
 
-1. **Marcar Día Completado**: Haz clic en el botón "✓ Marcar Día Completado" cada día que completes tu objetivo
-2. **Ver Estadísticas**: Observa tu racha actual, racha máxima y total de días
-3. **Animación de Llama**: La llama se encenderá con una animación cada vez que marques un día
-4. **Historial**: Revisa todas tus entradas en la sección de historial
-5. **Reiniciar**: Si necesitas empezar de nuevo, usa el botón "↻ Reiniciar Racha"
+1. **Marcar Día Completado**: Haz clic en "✓ Marcar Día Completado" cada día que completen su objetivo
+2. **Ver Estadísticas**: Observa la racha actual, racha máxima y total de días del equipo
+3. **Animación de Llama**: La llama se encenderá con una animación cada vez que alguien marque un día
+4. **Actualizar Datos**: Usa "🔄 Actualizar Datos" para ver cambios inmediatos
+5. **Historial**: Revisa todas las entradas del equipo en la sección de historial
+6. **Reiniciar**: El botón "↻ Reiniciar Racha" reinicia para todo el equipo
 
 ## 💾 Almacenamiento de Datos
 
-Los datos se almacenan de dos maneras:
+Los datos se almacenan de manera compartida:
 
-1. **LocalStorage del Navegador**: Los datos persisten automáticamente entre sesiones
-2. **Archivo JSON**: Se puede exportar a `streak-data.json` para respaldo
+1. **GitHub Gist (Principal)**: Almacenamiento en la nube accesible para todos
+2. **LocalStorage (Respaldo)**: Copia local para funcionar sin conexión
 
 ### Estructura de Datos
 
@@ -66,6 +86,17 @@ Los datos se almacenan de dos maneras:
   ]
 }
 ```
+
+## 🔒 Seguridad
+
+**⚠️ IMPORTANTE**: No subas tu `config.js` con el token a GitHub público
+
+Opciones de seguridad:
+1. Agrega `config.js` al `.gitignore`
+2. Usa variables de entorno
+3. Solicita el token con `prompt()` al cargar la página
+
+Ver [CONFIGURACION.md](CONFIGURACION.md) para más detalles.
 
 ## 🎨 Personalización
 
@@ -96,20 +127,41 @@ Las animaciones de la llama se pueden ajustar en `styles.css`:
 ```
 Rachas-Daily/
 │
-├── index.html          # Estructura HTML principal
-├── styles.css          # Estilos y animaciones
-├── app.js              # Lógica de la aplicación
+├── index.html              # Estructura HTML principal
+├── styles.css              # Estilos y animaciones
+├── app.js                  # Lógica de la aplicación con sincronización
+├── config.js               # Configuración de GitHub (NO SUBIR CON TOKEN)
+├── config.example.js       # Plantilla de configuración
 ├── data/
-│   └── streak-data.json  # Datos de ejemplo
-└── README.md           # Este archivo
+│   └── streak-data.json    # Datos de ejemplo (se guarda en Gist)
+├── CONFIGURACION.md        # Guía detallada de configuración
+└── README.md               # Este archivo
 ```
 
 ## 🛠️ Tecnologías
 
 - HTML5
 - CSS3 (Animaciones, Grid, Flexbox)
-- JavaScript (ES6+)
-- LocalStorage API
+- JavaScript (ES6+ Modules)
+- GitHub Gist API
+- LocalStorage API (respaldo)
+
+## 👥 Uso en Equipo
+
+### Para el Administrador:
+1. Configura el token y Gist ID
+2. Despliega en GitHub Pages
+3. Comparte el enlace con el equipo
+
+### Para los Miembros del Equipo:
+1. Accede al enlace compartido
+2. ¡Eso es todo! No necesitas configurar nada
+3. Todos ven y comparten la misma racha
+
+### Funcionalidades Colaborativas:
+- **Actualización automática**: Los datos se refrescan cada 30 segundos
+- **Sincronización**: Cuando alguien marca un día, todos lo ven
+- **Historial compartido**: Todos ven las contribuciones del equipo
 
 ## 🤝 Contribuir
 
@@ -123,13 +175,34 @@ Las contribuciones son bienvenidas:
 
 ## 📝 Ideas para Mejoras
 
-- [ ] Agregar diferentes tipos de rachas (ejercicio, estudio, etc.)
-- [ ] Implementar sistema de recompensas/logros
-- [ ] Añadir gráficos de progreso
+- [ ] Sistema de autenticación para identificar quién marcó cada día
+- [ ] Diferentes tipos de rachas por categoría (ejercicio, estudio, etc.)
+- [ ] Implementar sistema de recompensas/logros por equipo
+- [ ] Añadir gráficos de progreso con charts
 - [ ] Modo oscuro
-- [ ] Recordatorios con notificaciones del navegador
-- [ ] Sincronización con la nube
+- [ ] Notificaciones push del navegador
 - [ ] Exportar a CSV/Excel
+- [ ] Chat o comentarios por día
+- [ ] Rankings individuales dentro del equipo
+
+## 🆘 Soporte y Problemas Comunes
+
+### "Error al cargar datos"
+- Verifica el token y Gist ID en `config.js`
+- Asegúrate que el token tenga permisos `gist`
+- Revisa que el Gist exista y sea accesible
+
+### "Los datos no se actualizan"
+- Espera 30 segundos (auto-refresh)
+- Presiona "🔄 Actualizar Datos"
+- Verifica tu conexión a internet
+
+### "Conflictos de sincronización"
+- La app usa el sistema "último en escribir gana"
+- Evita que múltiples personas hagan check-in simultáneamente
+- El respaldo local protege contra pérdida de datos
+
+**Ver [CONFIGURACION.md](CONFIGURACION.md) para más detalles**
 
 ## 📄 Licencia
 

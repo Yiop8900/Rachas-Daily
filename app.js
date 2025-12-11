@@ -1,20 +1,113 @@
-// Clase para manejar el almacenamiento de datos
+// Importar configuración
+import CONFIG from './config.js';
+
+// Clase para manejar el almacenamiento de datos compartido via GitHub Gist
 class StreakStorage {
     constructor() {
         this.storageKey = 'streakData';
-        this.data = this.loadData();
+        this.gistAPI = `https://api.github.com/gists/${CONFIG.GIST_ID}`;
+        this.headers = {
+            'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json'
+        };
+        this.data = null;
+        this.isLoading = false;
     }
 
-    loadData() {
-        try {
-            const stored = localStorage.getItem(this.storageKey);
-            if (stored) {
-                return JSON.parse(stored);
-            }
-        } catch (error) {
-            console.error('Error al cargar datos:', error);
+    // Cargar datos desde GitHub Gist (compartido entre todos)
+    async loadData() {
+        if (this.isLoading) {
+            // Esperar si ya hay una carga en proceso
+            await new Promise(resolve => {
+                const checkLoading = setInterval(() => {
+                    if (!this.isLoading) {
+                        clearInterval(checkLoading);
+                        resolve();
+                    }
+                }, 100);
+            });
+            return this.data;
         }
-        
+
+        this.isLoading = true;
+
+        try {
+            const response = await fetch(this.gistAPI, {
+                headers: this.headers
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error al cargar datos: ${response.status}`);
+            }
+
+            const gist = await response.json();
+            const fileContent = gist.files[CONFIG.DATA_FILE_NAME].content;
+            this.data = JSON.parse(fileContent);
+            
+            // También guardar copia local como respaldo
+            localStorage.setItem(this.storageKey, fileContent);
+            
+        } catch (error) {
+            console.error('Error al cargar datos desde Gist:', error);
+            
+            // Intentar cargar desde localStorage como respaldo
+            try {
+                const stored = localStorage.getItem(this.storageKey);
+                if (stored) {
+                    this.data = JSON.parse(stored);
+                } else {
+                    this.data = this.getEmptyData();
+                }
+            } catch (e) {
+                this.data = this.getEmptyData();
+            }
+        } finally {
+            this.isLoading = false;
+        }
+
+        return this.data;
+    }
+
+    // Guardar datos en GitHub Gist (disponible para todos)
+    async saveData() {
+        try {
+            const content = JSON.stringify(this.data, null, 2);
+            
+            const response = await fetch(this.gistAPI, {
+                method: 'PATCH',
+                headers: this.headers,
+                body: JSON.stringify({
+                    files: {
+                        [CONFIG.DATA_FILE_NAME]: {
+                            content: content
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error al guardar datos: ${response.status}`);
+            }
+
+            // También guardar copia local
+            localStorage.setItem(this.storageKey, content);
+            
+            return true;
+        } catch (error) {
+            console.error('Error al guardar datos en Gist:', error);
+            
+            // Guardar al menos localmente
+            try {
+                localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+            } catch (e) {
+                console.error('Error al guardar en localStorage:', e);
+            }
+            
+            return false;
+        }
+    }
+
+    getEmptyData() {
         return {
             currentStreak: 0,
             maxStreak: 0,
@@ -22,32 +115,6 @@ class StreakStorage {
             lastCheckIn: null,
             history: []
         };
-    }
-
-    saveData() {
-        try {
-            localStorage.setItem(this.storageKey, JSON.stringify(this.data));
-            // También exportar a archivo para GitHub
-            this.exportToFile();
-        } catch (error) {
-            console.error('Error al guardar datos:', error);
-        }
-    }
-
-    exportToFile() {
-        const dataStr = JSON.stringify(this.data, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        // Crear enlace de descarga automático
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'streak-data.json';
-        
-        // Solo descomentar si quieres descarga automática
-        // link.click();
-        
-        URL.revokeObjectURL(url);
     }
 
     getCurrentStreak() {
@@ -70,7 +137,10 @@ class StreakStorage {
         return this.data.history;
     }
 
-    checkIn() {
+    async checkIn() {
+        // Recargar datos más recientes antes de hacer check-in
+        await this.loadData();
+        
         const today = new Date().toISOString().split('T')[0];
         const lastCheckIn = this.data.lastCheckIn;
 
@@ -121,24 +191,20 @@ class StreakStorage {
             this.data.history = this.data.history.slice(0, 100);
         }
 
-        this.saveData();
+        const saved = await this.saveData();
 
         return { 
-            success: true, 
-            message: `¡Excelente! Racha de ${this.data.currentStreak} días 🔥`,
+            success: saved, 
+            message: saved 
+                ? `¡Excelente! Racha de ${this.data.currentStreak} días 🔥`
+                : '⚠️ Error al guardar, pero racha registrada localmente',
             streak: this.data.currentStreak
         };
     }
 
-    reset() {
-        this.data = {
-            currentStreak: 0,
-            maxStreak: 0,
-            totalDays: 0,
-            lastCheckIn: null,
-            history: []
-        };
-        this.saveData();
+    async reset() {
+        this.data = this.getEmptyData();
+        await this.saveData();
     }
 }
 
@@ -148,8 +214,37 @@ class StreakApp {
         this.storage = new StreakStorage();
         this.initElements();
         this.attachEvents();
-        this.updateUI();
-        this.checkStreakStatus();
+        this.init();
+    }
+
+    async init() {
+        // Mostrar estado de carga
+        this.showNotification('Cargando datos compartidos...', 'info');
+        
+        try {
+            await this.storage.loadData();
+            this.updateUI();
+            this.checkStreakStatus();
+            this.showNotification('¡Datos cargados correctamente!', 'success');
+            
+            // Iniciar actualización automática
+            this.startAutoRefresh();
+        } catch (error) {
+            console.error('Error al inicializar:', error);
+            this.showNotification('Error al cargar datos. Usando datos locales.', 'error');
+        }
+    }
+
+    startAutoRefresh() {
+        // Refrescar datos cada cierto tiempo para ver cambios de otros usuarios
+        setInterval(async () => {
+            try {
+                await this.storage.loadData();
+                this.updateUI();
+            } catch (error) {
+                console.error('Error al refrescar datos:', error);
+            }
+        }, CONFIG.AUTO_REFRESH_INTERVAL);
     }
 
     initElements() {
@@ -159,6 +254,7 @@ class StreakApp {
         this.lastUpdateEl = document.getElementById('lastUpdate');
         this.checkInBtn = document.getElementById('checkInBtn');
         this.resetBtn = document.getElementById('resetBtn');
+        this.refreshBtn = document.getElementById('refreshBtn');
         this.flameEl = document.getElementById('flame');
         this.notificationEl = document.getElementById('notification');
         this.notificationTextEl = document.getElementById('notificationText');
@@ -168,9 +264,25 @@ class StreakApp {
     attachEvents() {
         this.checkInBtn.addEventListener('click', () => this.handleCheckIn());
         this.resetBtn.addEventListener('click', () => this.handleReset());
+        if (this.refreshBtn) {
+            this.refreshBtn.addEventListener('click', () => this.handleRefresh());
+        }
+    }
+
+    async handleRefresh() {
+        this.showNotification('Actualizando datos...', 'info');
+        try {
+            await this.storage.loadData();
+            this.updateUI();
+            this.showNotification('¡Datos actualizados!', 'success');
+        } catch (error) {
+            this.showNotification('Error al actualizar', 'error');
+        }
     }
 
     updateUI() {
+        if (!this.storage.data) return;
+        
         this.currentStreakEl.textContent = this.storage.getCurrentStreak();
         this.maxStreakEl.textContent = this.storage.getMaxStreak();
         this.totalDaysEl.textContent = this.storage.getTotalDays();
@@ -207,8 +319,11 @@ class StreakApp {
         }, 1000);
     }
 
-    handleCheckIn() {
-        const result = this.storage.checkIn();
+    async handleCheckIn() {
+        this.checkInBtn.disabled = true;
+        this.showNotification('Registrando...', 'info');
+        
+        const result = await this.storage.checkIn();
         
         if (result.success) {
             this.showNotification(result.message, 'success');
@@ -218,14 +333,21 @@ class StreakApp {
         } else {
             this.showNotification(result.message, 'error');
         }
+        
+        this.checkInBtn.disabled = false;
     }
 
-    handleReset() {
-        if (confirm('¿Estás seguro de que quieres reiniciar todas las rachas? Esta acción no se puede deshacer.')) {
-            this.storage.reset();
+    async handleReset() {
+        if (confirm('¿Estás seguro de que quieres reiniciar todas las rachas? Esta acción afectará a todos los usuarios y no se puede deshacer.')) {
+            this.resetBtn.disabled = true;
+            this.showNotification('Reiniciando...', 'info');
+            
+            await this.storage.reset();
             this.flameEl.classList.remove('active', 'ignite');
             this.updateUI();
-            this.showNotification('Rachas reiniciadas', 'success');
+            this.showNotification('Rachas reiniciadas para todos', 'success');
+            
+            this.resetBtn.disabled = false;
         }
     }
 
@@ -307,9 +429,3 @@ class StreakApp {
 document.addEventListener('DOMContentLoaded', () => {
     new StreakApp();
 });
-
-// Exportar datos periódicamente (cada 5 minutos si hay cambios)
-setInterval(() => {
-    const storage = new StreakStorage();
-    storage.saveData();
-}, 5 * 60 * 1000);

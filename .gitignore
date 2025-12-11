@@ -1,3 +1,6 @@
+# Archivos de configuración con datos sensibles
+config.js
+
 # Archivos de datos temporales
 data/streak-data.json
 

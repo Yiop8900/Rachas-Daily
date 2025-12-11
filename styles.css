@@ -212,6 +212,15 @@ h1 {
     background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
 }
 
+.btn-info {
+    background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+    color: white;
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #330867 0%, #30cfd0 100%);
+}
+
 /* Última actualización */
 .last-update {
     text-align: center;
@@ -247,6 +256,11 @@ h1 {
 .notification.error {
     background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
     color: #660000;
+}
+
+.notification.info {
+    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    color: #004466;
 }
 
 /* Historial */
