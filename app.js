@@ -3,7 +3,7 @@ let CONFIG = {
     GITHUB_TOKEN: localStorage.getItem('github_token') || '',
     GIST_ID: localStorage.getItem('gist_id') || '',
     DATA_FILE_NAME: 'streak-data.json',
-    AUTO_REFRESH_INTERVAL: 30000
+    AUTO_REFRESH_INTERVAL: 5000 // 5 segundos para actualización más rápida
 };
 
 // Función para configurar credenciales
@@ -58,8 +58,10 @@ class StreakStorage {
             console.log('Cargando datos desde GitHub Gist...');
             console.log('URL:', this.gistAPI);
             
+            // Agregar cache-busting para obtener siempre la versión más reciente
             const response = await fetch(this.gistAPI, {
-                headers: this.headers
+                headers: this.headers,
+                cache: 'no-cache'
             });
 
             if (!response.ok) {
@@ -285,14 +287,49 @@ class StreakApp {
 
     startAutoRefresh() {
         // Refrescar datos cada cierto tiempo para ver cambios de otros usuarios
-        setInterval(async () => {
+        this.refreshInterval = setInterval(async () => {
             try {
+                this.setSyncStatus('syncing');
+                const oldStreak = this.storage.getCurrentStreak();
                 await this.storage.loadData();
+                const newStreak = this.storage.getCurrentStreak();
+                
                 this.updateUI();
+                this.setSyncStatus('synced');
+                
+                // Notificar si hubo cambios
+                if (newStreak !== oldStreak) {
+                    console.log('Datos actualizados desde GitHub');
+                    this.showNotification(`🔥 Racha actualizada: ${newStreak} días`, 'info');
+                    if (newStreak > oldStreak) {
+                        this.igniteFlame();
+                    }
+                }
             } catch (error) {
                 console.error('Error al refrescar datos:', error);
+                this.setSyncStatus('error');
             }
         }, CONFIG.AUTO_REFRESH_INTERVAL);
+    }
+
+    setSyncStatus(status) {
+        if (!this.syncIndicatorEl || !this.syncTextEl) return;
+        
+        this.syncIndicatorEl.className = 'sync-indicator';
+        
+        switch(status) {
+            case 'syncing':
+                this.syncIndicatorEl.classList.add('syncing');
+                this.syncTextEl.textContent = 'Sincronizando...';
+                break;
+            case 'synced':
+                this.syncTextEl.textContent = 'Sincronizado';
+                break;
+            case 'error':
+                this.syncIndicatorEl.classList.add('error');
+                this.syncTextEl.textContent = 'Error de conexión';
+                break;
+        }
     }
 
     initElements() {
@@ -308,6 +345,8 @@ class StreakApp {
         this.notificationEl = document.getElementById('notification');
         this.notificationTextEl = document.getElementById('notificationText');
         this.historyListEl = document.getElementById('historyList');
+        this.syncIndicatorEl = document.getElementById('syncIndicator');
+        this.syncTextEl = document.getElementById('syncText');
     }
 
     attachEvents() {
@@ -331,11 +370,14 @@ class StreakApp {
 
     async handleRefresh() {
         this.showNotification('Actualizando datos...', 'info');
+        this.setSyncStatus('syncing');
         try {
             await this.storage.loadData();
             this.updateUI();
+            this.setSyncStatus('synced');
             this.showNotification('¡Datos actualizados!', 'success');
         } catch (error) {
+            this.setSyncStatus('error');
             this.showNotification('Error al actualizar', 'error');
         }
     }
