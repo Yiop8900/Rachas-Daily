@@ -201,7 +201,7 @@ Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) pa
 
 ## 👤 Autor
 
-Tu Nombre - [@tu-usuario](https://github.com/tu-usuario)
+[@Yiop8900](https://github.com/Yiop8900)
 
 ## 🙏 Agradecimientos
 
