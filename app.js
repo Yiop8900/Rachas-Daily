@@ -1,4 +1,4 @@
-// Configuración - Los usuarios deben ingresar estos valores
+// Configuración - Los usuarios solo necesitan el Gist ID
 let CONFIG = {
     GITHUB_TOKEN: localStorage.getItem('github_token') || '',
     GIST_ID: localStorage.getItem('gist_id') || '',
@@ -6,26 +6,28 @@ let CONFIG = {
     AUTO_REFRESH_INTERVAL: 5000 // 5 segundos para actualización más rápida
 };
 
-// Función para configurar credenciales
-function setupCredentials() {
-    if (!CONFIG.GITHUB_TOKEN || !CONFIG.GIST_ID) {
-        alert('🔧 Configuración Inicial\n\nNecesitas ingresar:\n1. GitHub Personal Access Token\n2. Gist ID\n\n⚠️ IMPORTANTE: Todos los usuarios deben usar el MISMO token y MISMO Gist ID para compartir la racha.');
-        
-        const token = prompt('Ingresa tu GitHub Personal Access Token:\n(Se guardará en tu navegador)\n\nToken:');
-        if (!token) return false;
-        
-        const gistId = prompt('Ingresa tu Gist ID:\n(Se guardará en tu navegador)\n\n⚠️ Debe ser el MISMO ID que usan tus compañeros\n\nGist ID:');
+// Función para configurar solo el Gist ID (lectura es pública para todos)
+function setupGistId() {
+    if (!CONFIG.GIST_ID) {
+        const gistId = prompt('🔧 Bienvenido!\n\nPara ver y participar en la racha compartida, necesitas el Gist ID.\n\n💡 El administrador debe compartir este ID contigo.\n\nGist ID:');
         if (!gistId) return false;
         
-        // Mostrar confirmación
-        if (confirm(`¿Confirmas estos datos?\n\nToken: ${token.substring(0, 10)}...\nGist ID: ${gistId}\n\n✅ Presiona OK para guardar`)) {
-            localStorage.setItem('github_token', token);
-            localStorage.setItem('gist_id', gistId);
-            CONFIG.GITHUB_TOKEN = token;
-            CONFIG.GIST_ID = gistId;
-            return true;
-        }
-        return false;
+        localStorage.setItem('gist_id', gistId);
+        CONFIG.GIST_ID = gistId;
+        return true;
+    }
+    return true;
+}
+
+// Función para solicitar token solo cuando se necesite escribir
+function requestTokenForWrite() {
+    if (!CONFIG.GITHUB_TOKEN) {
+        const token = prompt('🔐 Para marcar días necesitas un GitHub Token\n\n📝 Solicítalo al administrador o crea uno en:\nhttps://github.com/settings/tokens/new\n(Permiso necesario: gist)\n\nToken:');
+        if (!token) return false;
+        
+        localStorage.setItem('github_token', token);
+        CONFIG.GITHUB_TOKEN = token;
+        return true;
     }
     return true;
 }
@@ -35,15 +37,12 @@ class StreakStorage {
     constructor() {
         this.storageKey = 'streakData';
         this.gistAPI = `https://api.github.com/gists/${CONFIG.GIST_ID}`;
-        this.headers = {
-            'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json'
-        };
+        this.gistRawAPI = null; // Se configurará al cargar los datos
         this.data = null;
         this.isLoading = false;
     }
 
-    // Cargar datos desde GitHub Gist (compartido entre todos)
+    // Cargar datos desde GitHub Gist (compartido entre todos - SIN AUTENTICACIÓN)
     async loadData() {
         if (this.isLoading) {
             // Esperar si ya hay una carga en proceso
@@ -61,23 +60,64 @@ class StreakStorage {
         this.isLoading = true;
 
         try {
-            console.log('Cargando datos desde GitHub Gist...');
-            console.log('URL:', this.gistAPI);
+            console.log('Cargando datos desde GitHub Gist (público)...');
             
-            // Agregar cache-busting para obtener siempre la versión más reciente
-            const response = await fetch(this.gistAPI, {
-                headers: this.headers,
-                cache: 'no-cache'
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('Error de GitHub:', errorData);
-                throw new Error(`Error al cargar datos: ${response.status} - ${errorData.message || 'Error desconocido'}`);
+            // Primero intentar obtener la URL raw del Gist (no requiere autenticación para gists públicos)
+            if (!this.gistRawAPI) {
+                // Obtener metadata del gist para conseguir la URL raw
+                const metaResponse = await fetch(this.gistAPI, {
+                    cache: 'no-cache'
+                });
+                
+                if (metaResponse.ok) {
+                    const gistMeta = await metaResponse.json();
+                    this.gistRawAPI = gistMeta.files[CONFIG.DATA_FILE_NAME].raw_url;
+                    console.log('URL raw obtenida:', this.gistRawAPI);
+                }
+            }
+            
+            // Intentar cargar desde URL raw (público, sin autenticación)
+            let response;
+            if (this.gistRawAPI) {
+                // Agregar cache busting para obtener la versión más reciente
+                const separator = this.gistRawAPI.includes('?') ? '&' : '?';
+                response = await fetch(this.gistRawAPI + separator + 'cache_bust=' + Date.now(), {
+                    cache: 'no-cache'
+                });
+            } else {
+                // Fallback: intentar con API autenticada si hay token
+                response = await fetch(this.gistAPI, {
+                    headers: CONFIG.GITHUB_TOKEN ? {
+                        'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    } : {},
+                    cache: 'no-cache'
+                });
             }
 
-            const gist = await response.json();
-            const fileContent = gist.files[CONFIG.DATA_FILE_NAME].content;
+            if (!response.ok) {
+                throw new Error(`Error al cargar datos: ${response.status}`);
+            }
+
+            let fileContent;
+            // Verificar si es una respuesta de raw URL (respuesta directa de contenido)
+            // o de la API (respuesta con metadata)
+            const contentType = response.headers.get('content-type') || '';
+            const isRawResponse = this.gistRawAPI && response.url.includes('/raw/');
+            
+            if (isRawResponse || contentType.includes('text/plain') || contentType.includes('application/json')) {
+                // Respuesta directa del contenido
+                fileContent = await response.text();
+            } else {
+                // Respuesta de la API con metadata
+                const gist = await response.json();
+                fileContent = gist.files[CONFIG.DATA_FILE_NAME].content;
+                // Guardar la URL raw para próximas cargas
+                if (!this.gistRawAPI) {
+                    this.gistRawAPI = gist.files[CONFIG.DATA_FILE_NAME].raw_url;
+                }
+            }
+            
             this.data = JSON.parse(fileContent);
             
             // También guardar copia local como respaldo
@@ -109,8 +149,14 @@ class StreakStorage {
         return this.data;
     }
 
-    // Guardar datos en GitHub Gist (disponible para todos)
+    // Guardar datos en GitHub Gist (requiere autenticación)
     async saveData() {
+        // Verificar que tengamos un token antes de intentar guardar
+        if (!CONFIG.GITHUB_TOKEN) {
+            console.error('No se puede guardar sin token de GitHub');
+            return false;
+        }
+        
         try {
             const content = JSON.stringify(this.data, null, 2);
             
@@ -118,7 +164,10 @@ class StreakStorage {
             
             const response = await fetch(this.gistAPI, {
                 method: 'PATCH',
-                headers: this.headers,
+                headers: {
+                    'Authorization': `token ${CONFIG.GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                },
                 body: JSON.stringify({
                     files: {
                         [CONFIG.DATA_FILE_NAME]: {
@@ -138,15 +187,20 @@ class StreakStorage {
             localStorage.setItem(this.storageKey, content);
             console.log('Datos guardados exitosamente en GitHub y localmente');
             
+            // Invalidar cache de raw URL para que próximas cargas obtengan la versión actualizada
+            this.gistRawAPI = null;
+            
             return true;
         } catch (error) {
             console.error('Error al guardar datos en Gist:', error);
             
-            // Guardar al menos localmente
+            // Guardar al menos localmente como respaldo
             try {
                 localStorage.setItem(this.storageKey, JSON.stringify(this.data));
                 console.log('Datos guardados solo localmente como respaldo');
-                return true; // Retornar true porque al menos se guardó localmente
+                // Retornar false porque el guardado en el servidor falló
+                // El usuario debe saber que los datos no están sincronizados
+                return false;
             } catch (e) {
                 console.error('Error al guardar en localStorage:', e);
                 return false;
@@ -185,6 +239,11 @@ class StreakStorage {
     }
 
     async checkIn() {
+        // Solicitar token si no existe (solo cuando se intenta escribir)
+        if (!requestTokenForWrite()) {
+            return { success: false, message: 'Token requerido para marcar días' };
+        }
+        
         // Recargar datos más recientes antes de hacer check-in
         await this.loadData();
         
@@ -244,14 +303,19 @@ class StreakStorage {
             success: saved, 
             message: saved 
                 ? `¡Excelente! Racha de ${this.data.currentStreak} días 🔥`
-                : '⚠️ Error al guardar, pero racha registrada localmente',
+                : '⚠️ Error al guardar. Verifica tu token y conexión',
             streak: this.data.currentStreak
         };
     }
 
     async reset() {
+        // Solicitar token si no existe (solo cuando se intenta escribir)
+        if (!requestTokenForWrite()) {
+            return false;
+        }
+        
         this.data = this.getEmptyData();
-        await this.saveData();
+        return await this.saveData();
     }
 }
 
@@ -265,12 +329,9 @@ class StreakApp {
     }
 
     async init() {
-        // Verificar y solicitar credenciales si es necesario
-        if (!setupCredentials()) {
-            this.showNotification('⚠️ Configuración cancelada. Usando modo local.', 'error');
-            // Intentar cargar datos locales
-            await this.storage.loadData();
-            this.updateUI();
+        // Solo verificar y solicitar Gist ID (lectura es pública)
+        if (!setupGistId()) {
+            this.showNotification('⚠️ Necesitas el Gist ID para continuar', 'error');
             return;
         }
         
@@ -286,13 +347,13 @@ class StreakApp {
             await this.storage.loadData();
             this.updateUI();
             this.checkStreakStatus();
-            this.showNotification('¡Datos cargados correctamente!', 'success');
+            this.showNotification('¡Datos cargados! Todos pueden ver la misma racha 🔥', 'success');
             
             // Iniciar actualización automática
             this.startAutoRefresh();
         } catch (error) {
             console.error('Error al inicializar:', error);
-            this.showNotification('Error al cargar datos. Usando datos locales.', 'error');
+            this.showNotification('Error al cargar datos. Verifica el Gist ID.', 'error');
         }
     }
 
@@ -373,10 +434,29 @@ class StreakApp {
     }
 
     handleConfig() {
-        if (confirm('¿Deseas reconfigurar tus credenciales de GitHub?')) {
-            localStorage.removeItem('github_token');
+        // Mostrar opciones más claras
+        const options = [
+            '¿Qué deseas reconfigurar?',
+            '',
+            '1. Gist ID (para cambiar a otra racha)',
+            '2. Token de GitHub (para obtener permisos de escritura)',
+            '',
+            'Escribe el número de tu opción:'
+        ].join('\n');
+        
+        const choice = prompt(options);
+        
+        if (choice === '1') {
+            // Reconfigurar Gist ID
             localStorage.removeItem('gist_id');
             location.reload();
+        } else if (choice === '2') {
+            // Reconfigurar token
+            localStorage.removeItem('github_token');
+            CONFIG.GITHUB_TOKEN = '';
+            this.showNotification('Token eliminado. Se solicitará al marcar un día.', 'info');
+        } else if (choice !== null) {
+            this.showNotification('Opción no válida. Usa 1 o 2.', 'error');
         }
     }
 
@@ -456,10 +536,14 @@ class StreakApp {
             this.resetBtn.disabled = true;
             this.showNotification('Reiniciando...', 'info');
             
-            await this.storage.reset();
-            this.flameEl.classList.remove('active', 'ignite');
-            this.updateUI();
-            this.showNotification('Rachas reiniciadas para todos', 'success');
+            const success = await this.storage.reset();
+            if (success) {
+                this.flameEl.classList.remove('active', 'ignite');
+                this.updateUI();
+                this.showNotification('Rachas reiniciadas para todos', 'success');
+            } else {
+                this.showNotification('Error al reiniciar. Verifica tu token.', 'error');
+            }
             
             this.resetBtn.disabled = false;
         }
