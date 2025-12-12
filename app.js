@@ -79,7 +79,9 @@ class StreakStorage {
             // Intentar cargar desde URL raw (público, sin autenticación)
             let response;
             if (this.gistRawAPI) {
-                response = await fetch(this.gistRawAPI + '?t=' + Date.now(), {
+                // Agregar cache busting para obtener la versión más reciente
+                const separator = this.gistRawAPI.includes('?') ? '&' : '?';
+                response = await fetch(this.gistRawAPI + separator + 'cache_bust=' + Date.now(), {
                     cache: 'no-cache'
                 });
             } else {
@@ -98,8 +100,13 @@ class StreakStorage {
             }
 
             let fileContent;
-            if (this.gistRawAPI && response.headers.get('content-type')?.includes('text/plain')) {
-                // Respuesta directa del contenido raw
+            // Verificar si es una respuesta de raw URL (respuesta directa de contenido)
+            // o de la API (respuesta con metadata)
+            const contentType = response.headers.get('content-type') || '';
+            const isRawResponse = this.gistRawAPI && response.url.includes('/raw/');
+            
+            if (isRawResponse || contentType.includes('text/plain') || contentType.includes('application/json')) {
+                // Respuesta directa del contenido
                 fileContent = await response.text();
             } else {
                 // Respuesta de la API con metadata
@@ -187,11 +194,13 @@ class StreakStorage {
         } catch (error) {
             console.error('Error al guardar datos en Gist:', error);
             
-            // Guardar al menos localmente
+            // Guardar al menos localmente como respaldo
             try {
                 localStorage.setItem(this.storageKey, JSON.stringify(this.data));
                 console.log('Datos guardados solo localmente como respaldo');
-                return false; // Retornar false porque no se guardó en el servidor
+                // Retornar false porque el guardado en el servidor falló
+                // El usuario debe saber que los datos no están sincronizados
+                return false;
             } catch (e) {
                 console.error('Error al guardar en localStorage:', e);
                 return false;
@@ -425,17 +434,29 @@ class StreakApp {
     }
 
     handleConfig() {
-        const action = confirm('¿Qué deseas reconfigurar?\n\nOK = Gist ID\nCancelar = Token de GitHub');
+        // Mostrar opciones más claras
+        const options = [
+            '¿Qué deseas reconfigurar?',
+            '',
+            '1. Gist ID (para cambiar a otra racha)',
+            '2. Token de GitHub (para obtener permisos de escritura)',
+            '',
+            'Escribe el número de tu opción:'
+        ].join('\n');
         
-        if (action) {
+        const choice = prompt(options);
+        
+        if (choice === '1') {
             // Reconfigurar Gist ID
             localStorage.removeItem('gist_id');
             location.reload();
-        } else {
+        } else if (choice === '2') {
             // Reconfigurar token
             localStorage.removeItem('github_token');
             CONFIG.GITHUB_TOKEN = '';
             this.showNotification('Token eliminado. Se solicitará al marcar un día.', 'info');
+        } else if (choice !== null) {
+            this.showNotification('Opción no válida. Usa 1 o 2.', 'error');
         }
     }
 
